@@ -1,6 +1,9 @@
 import { db } from '../lib/db.js';
 import { ingestQueue } from '../lib/redis.js';
-import pdfParse from 'pdf-parse';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const pdfParse = require('pdf-parse');
 
 export async function uploadDocument(file) {
   const { originalname, mimetype, buffer } = file;
