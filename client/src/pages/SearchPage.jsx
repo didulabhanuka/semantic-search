@@ -1,6 +1,24 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ResultCard } from '../components/ResultCard.jsx'
 import { searchDocuments, streamAnswer } from '../api/client.js'
+
+const HISTORY_KEY = 'semantic_search_history'
+const MAX_HISTORY = 10
+
+function loadHistory() {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function saveHistory(query, existing) {
+  const deduped = [query, ...existing.filter(q => q !== query)]
+  const trimmed = deduped.slice(0, MAX_HISTORY)
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed))
+  return trimmed
+}
 
 export default function SearchPage() {
   const [query, setQuery] = useState('')
@@ -11,10 +29,15 @@ export default function SearchPage() {
   const [streaming, setStreaming] = useState(false)
   const [error, setError] = useState(null)
   const [searched, setSearched] = useState(false)
+  const [history, setHistory] = useState(loadHistory)
 
-  async function handleSearch(e) {
-    e.preventDefault()
-    if (!query.trim()) return
+  async function handleSearch(e, overrideQuery) {
+    e?.preventDefault()
+    const q = overrideQuery || query
+    if (!q.trim()) return
+
+    // Update query input if triggered from history chip
+    if (overrideQuery) setQuery(overrideQuery)
 
     setSearching(true)
     setError(null)
@@ -24,8 +47,9 @@ export default function SearchPage() {
     setSearched(true)
 
     try {
-      const data = await searchDocuments({ query })
+      const data = await searchDocuments({ query: q })
       setResults(data.results)
+      setHistory(prev => saveHistory(q, prev))
     } catch (err) {
       setError(err.message)
     } finally {
@@ -46,6 +70,11 @@ export default function SearchPage() {
     )
   }
 
+  function clearHistory() {
+    localStorage.removeItem(HISTORY_KEY)
+    setHistory([])
+  }
+
   return (
     <div className="max-w-3xl mx-auto">
 
@@ -60,7 +89,7 @@ export default function SearchPage() {
       </div>
 
       {/* Search Form */}
-      <form onSubmit={handleSearch} className="flex gap-2 mb-8">
+      <form onSubmit={handleSearch} className="flex gap-2 mb-4">
         <input
           type="text"
           value={query}
@@ -76,6 +105,32 @@ export default function SearchPage() {
           {searching ? 'Searching...' : 'Search'}
         </button>
       </form>
+
+      {/* Search History */}
+      {history.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-400 font-medium">Recent searches</span>
+            <button
+              onClick={clearHistory}
+              className="text-xs text-gray-300 hover:text-red-400 transition-colors"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {history.map((q, i) => (
+              <button
+                key={i}
+                onClick={() => handleSearch(null, q)}
+                className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs text-gray-600 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              >
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Error */}
       {error && (

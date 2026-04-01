@@ -12,7 +12,14 @@ export async function handleUpload(req, res, next) {
       return res.status(400).json({ error: 'No file uploaded.' });
     }
 
-    const document = await uploadDocument(req.file);
+    // Parse tags from request body — sent as comma-separated string
+    const rawTags = req.body.tags || '';
+    const tags = rawTags
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(t => t.length > 0);
+
+    const document = await uploadDocument(req.file, tags);
 
     res.status(202).json({
       message: 'File uploaded. Ingestion started.',
@@ -25,7 +32,14 @@ export async function handleUpload(req, res, next) {
 
 export async function handleList(req, res, next) {
   try {
-    const documents = await listDocuments();
+    // Parse tags filter from query string e.g. ?tags=ai,ml
+    const rawTags = req.query.tags || '';
+    const tags = rawTags
+      .split(',')
+      .map(t => t.trim().toLowerCase())
+      .filter(t => t.length > 0);
+
+    const documents = await listDocuments(tags);
     res.json({ count: documents.length, documents });
   } catch (err) {
     next(err);

@@ -19,14 +19,16 @@ async function request(endpoint, options = {}) {
 
 // --- Documents ---
 
-export async function uploadDocument(file) {
+export async function uploadDocument(file, tags = []) {
   const form = new FormData();
   form.append('file', file);
+  if (tags.length > 0) {
+    form.append('tags', tags.join(','));
+  }
 
   const res = await fetch(`${BASE_URL}/documents`, {
     method: 'POST',
     body: form,
-    // No Content-Type header — browser sets it automatically with boundary for multipart
   });
 
   if (!res.ok) {
@@ -37,8 +39,9 @@ export async function uploadDocument(file) {
   return res.json();
 }
 
-export async function listDocuments() {
-  return request('/documents');
+export async function listDocuments(tags = []) {
+  const query = tags.length > 0 ? `?tags=${tags.join(',')}` : '';
+  return request(`/documents${query}`);
 }
 
 export async function getDocument(id) {

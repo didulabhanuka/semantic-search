@@ -96,8 +96,63 @@ export async function semanticSearch(query, { limit = 10, documentIds = [], hybr
   return results;
 }
 
+function extractRelevantSentences(content, query, maxSentences = 3) {
+  const queryWords = query.toLowerCase()
+    .split(/\s+/)
+    .filter(w => w.length > 3); // ignore short words like "the", "how"
+
+  const sentences = content
+    .split(/(?<=[.!?])\s+/)
+    .filter(s => s.trim().length > 20);
+
+  // Score each sentence by how many query words it contains
+  const scored = sentences.map(sentence => {
+    const lower = sentence.toLowerCase();
+    const score = queryWords.filter(w => lower.includes(w)).length;
+    return { sentence, score };
+  });
+
+  // Sort by score, take top N, then restore original order
+  const topSentences = scored
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, maxSentences)
+    .map(s => s.sentence);
+
+  // If no keyword overlap at all, just take first 2 sentences
+  if (topSentences.length === 0) {
+    return sentences.slice(0, 2);
+  }
+
+  return topSentences;
+}
+
+async function demoAnswer(query, results, res) {
+  const lines = [
+    `**Demo Mode** — Add ANTHROPIC_API_KEY to .env for full AI answers.\n\n`,
+    `Based on the top ${results.length} matching passages:\n\n`,
+  ];
+
+  results.slice(0, 3).forEach((r, i) => {
+    const sentences = extractRelevantSentences(r.content, query);
+    lines.push(`[${i + 1}] *${r.document.filename}*\n${sentences.join(' ')}\n\n`);
+  });
+
+  lines.push(`---\n*Semantic similarity search found these passages without exact keyword matching.*`);
+
+  const fullText = lines.join('');
+
+  // Stream character by character for typewriter effect
+  for (const char of fullText) {
+    res.write(`data: ${JSON.stringify({ text: char })}\n\n`);
+    await new Promise(r => setTimeout(r, 8)); // 8ms per char
+  }
+
+  res.write('data: [DONE]\n\n');
+  res.end();
+}
+
 export async function ragAnswer(query, res) {
-  // Get top 5 chunks for context
   const results = await semanticSearch(query, { limit: 5 });
 
   if (!results.length) {
@@ -107,16 +162,20 @@ export async function ragAnswer(query, res) {
     return;
   }
 
-  // Build context string from chunks
+  // Fall back to demo mode if no API key
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey || apiKey === 'your_key_here' || !apiKey.startsWith('sk-ant-')) {
+    await demoAnswer(query, results, res);
+    return;
+  }
+
   const context = results
     .map((r, i) => `[${i + 1}] (${r.document.filename})\n${r.content}`)
     .join('\n\n');
 
-  // Import Anthropic SDK
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  // Stream Claude's response back to the client
   const stream = anthropic.messages.stream({
     model: 'claude-sonnet-4-20250514',
     max_tokens: 1024,

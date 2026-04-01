@@ -7,13 +7,15 @@ export function UploadZone({ onUpload, uploading }) {
   const handleDrop = (e) => {
     e.preventDefault()
     setDragging(false)
-    const file = e.dataTransfer.files[0]
-    if (file) onUpload(file)
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length) onUpload(files)
   }
 
   const handleChange = (e) => {
-    const file = e.target.files[0]
-    if (file) onUpload(file)
+    const files = Array.from(e.target.files)
+    if (files.length) onUpload(files)
+    // Reset input so same file can be re-uploaded
+    e.target.value = ''
   }
 
   return (
@@ -34,6 +36,7 @@ export function UploadZone({ onUpload, uploading }) {
         ref={inputRef}
         type="file"
         accept=".pdf,.txt,.md"
+        multiple
         className="hidden"
         onChange={handleChange}
         disabled={uploading}
@@ -52,12 +55,13 @@ export function UploadZone({ onUpload, uploading }) {
       ) : (
         <>
           <p className="text-sm font-medium text-gray-700">
-            Drop a file here or <span className="text-indigo-600">browse</span>
+            Drop files here or <span className="text-indigo-600">browse</span>
           </p>
-          <p className="text-xs text-gray-400 mt-1">PDF, TXT, Markdown — up to 20MB</p>
+          <p className="text-xs text-gray-400 mt-1">
+            PDF, TXT, Markdown — up to 20MB each · multiple files supported
+          </p>
         </>
       )}
-
     </div>
   )
 }
