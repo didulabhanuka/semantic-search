@@ -128,7 +128,7 @@ semantic-search/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/yourusername/semantic-search.git
+git clone https://github.com/didulabhanuka/semantic-search.git
 cd semantic-search
 ```
 
